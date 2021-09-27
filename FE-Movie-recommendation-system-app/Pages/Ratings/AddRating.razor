@@ -1,0 +1,71 @@
+﻿@page "/ratings/movie/{MovieId}"
+@inject IHttpService Http
+@inject IAccountService AccountService
+@inject NavigationManager NavigationManager
+@inject AppState AppState
+
+
+@if (!AppState.LoggedIn)
+{
+    NavigationManager.NavigateTo("account/login");
+}
+else
+{
+    <button action="action"
+            onclick="window.history.go(-1); return false;"
+            type="submit" class="oi oi-arrow-thick-left"
+            style="background-color:var(--background); color: var(--font-color) ;width:60px; height: 30px; border: none; margin-bottom: 20px">
+    </button>
+
+    <div class="card">
+        <h4 class="card-header" style="background-color: var(--highlight)">Add rating</h4>
+        <div class="card-body" style="background-color: var(--highlight)">
+            <EditForm Model="@addRatingRequest" OnValidSubmit="OnValidSubmit">
+                <DataAnnotationsValidator />
+                <div class="form-group">
+                    <label>Value</label>
+                    <InputNumber @bind-Value="addRatingRequest.Value" class="form-control" />
+                    <ValidationMessage For="@(() => addRatingRequest.Value)" />
+                </div>
+                @if (message != null)
+                {
+                    @message <br />
+                }
+                <button disabled="@loading" class="btn btn-primary">
+                    @if (loading)
+                    {
+                        <span class="spinner-border spinner-border-sm mr-1"></span>
+                    }
+                    Submit
+                </button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string MovieId { get; set; }
+
+    private AddRatingRequest addRatingRequest = new AddRatingRequest();
+    private bool loading { get; set; }
+    private string message { get; set; }
+
+    private async void OnValidSubmit()
+    {
+        loading = true;
+        addRatingRequest.MovieId = int.Parse(MovieId);
+        addRatingRequest.userId = AccountService.User.Id;
+
+        try
+        {
+            await Http.Post(APIConstants.RatingsEndpoint, addRatingRequest);
+            NavigationManager.NavigateTo($"{PagesConstants.MyRatings}");
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            loading = false;
+            StateHasChanged();
+        }
+    }
+}

@@ -1,0 +1,401 @@
+﻿@page "/"
+@inject IAccountService AccountService
+@inject IHttpService Http
+@inject HttpClient HttpClient
+@inject AppState AppState
+@inject NavigationManager NavigationManager
+@using System.Text.Json;
+
+<head>
+    <style>
+        .dropbtn {
+            background-image: linear-gradient(#0C2262, #380647);
+            color: white;
+            padding: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            margin-left: 30px;
+        }
+
+        button {
+            border: none;
+            color: black;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+        }
+
+        .active {
+            border: 1px solid black;
+        }
+
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f1f1f1;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+
+        .dropdown:hover .dropbtn {
+            background-image: linear-gradient(#0b1f5b, #25042f);
+        }
+
+        .dropmenuScroll {
+            height: 300px;
+            max-height: 300px;
+            overflow-y: scroll;
+            position: absolute;
+        }
+
+        #popup_view {
+            visibility: @PopupViewStatus;
+            background-color: var(--highlight);
+            position: fixed;
+            z-index: 10;
+            width: 50%;
+            left: 25%;
+            height: 70%;
+            top: 5%;
+            display: flex;
+            flex-direction: column;
+            opacity: 1;
+            box-shadow: 0px 0px 50px 1px #000;
+        }
+
+        #close_button {
+            top: 10px;
+            right: 20px;
+            transition: all 200ms;
+            font-size: 30px;
+            font-weight: bold;
+            text-decoration: none;
+            color: black;
+            float: right;
+            position: absolute;
+        }
+
+        .movie_image {
+            width: 280px;
+            height: 420px;
+            padding-top:10px;
+            float: left;
+        }
+
+        .cast {
+            padding-left: 270px;
+        }
+
+        .cast ul {
+            list-style-type: none;
+        }
+    </style>
+</head>
+
+<div class="p-4">
+    <div class="container">
+        @if (@AccountService.User != null)
+        {
+            <h1>Hi @AccountService.User.Username!</h1>
+        }
+        else
+        {
+            <h1>Hi!</h1>
+        }
+        <p>Welcome to Movie Recommendation System!!</p>
+        <hr />
+    </div>
+</div>
+<link href="_content/BlazorPro.Spinkit/spinkit.min.css" rel="stylesheet" />
+
+<SpinLoader IsLoading="isLoading">
+    <LoadingTemplate>
+        <div class="col-12" style="height: 400px; vertical-align:middle">
+            <br /><br />
+            <Circle Center="true" Color="#9400D3" Size="70px"></Circle>
+        </div>
+    </LoadingTemplate>
+    <ContentTemplate>
+        @if (movies != null)
+        {
+            <div id="popup_view">
+                <div>
+                    <span class="classhover" id="close_button" @onclick="() => ClosePopup()">&times;</span>
+                    <h1 id="Title" style="padding-left:10px; padding-top:10px">@MovieTitle</h1>
+                    <hr>
+                    <div style="padding-left:10px">
+                        <img class="movie_image" src="@PictureAddress">
+                        <p style="padding:10px; padding-left:300px">@MovieDescription</p>
+                        <div class="cast">
+                            <h3 style="padding-left: 20px; padding-right: 10px">Cast</h3>
+                            <ul>
+                                @if (@ActorsList != null)
+                                {
+                                    @foreach (Actor actor in @ActorsList)
+                                    {
+                                        <li>@actor.Name</li>
+                                    }
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <h2>Movies</h2>
+            <div>
+                <div>
+                    <div>
+                        <input placeholder="Title" @bind-value="searchTerm" @bind-value:event="oninput" style="font-size: 18px ; margin-top: 20px; margin-bottom: 20px" />
+                        <span @onclick="async () => await SelectedPage(1)" class="oi oi-magnifying-glass classhover" style="font-size: 22px"></span>
+
+                        <div class="dropdown">
+                            <button class="dropbtn">Choose genre</button>
+                            <div class="dropdown-content dropmenuScroll">
+                                <form>
+                                    <button type="button" @onclick="async () => await ClearGenre()">None</button>
+                                    @foreach (var genre in genres)
+                                    {
+                                        <button class="@(idGenre == genre.Id ? "active" : null)" type="button" @onclick="async () => await FilterByGenre(genre.Id)"> @genre.Name </button>
+                                    }
+                                </form>
+                            </div>
+                        </div>
+                        <button class="btnnofilter" @onclick="async () => await ClearFilters()">No filters</button>
+                    </div>
+                </div>
+            </div>
+
+            <table class="table">
+                <thead style="background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%); color:white">
+                    <tr>
+                        <th @onclick="@( () => SortBy("Title"))">Title <span class="oi @(SetSortIcon("Title")) classhover"></span></th>
+                        <th @onclick="@( () => SortBy("ReleaseYear"))">Release Year <span class="oi @(SetSortIcon("ReleaseYear")) classhover"></span></th>
+                        <th>Genres</th>
+                        <th>Actors</th>
+                        @if (AppState.LoggedIn)
+                        {
+                            <th>Rating</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var movie in movies)
+                    {
+                        <tr>
+                            <td class="classhover" @onclick="async () => GetMovieData(movie.Id)">@movie.Title</td>
+                            <td style="padding-left:30px;">@movie.ReleaseYear</td>
+                            <td>
+                                @foreach (var genre in movie.Genres)
+                                {
+                                    <span style="padding:5px">@genre.Name</span>
+                                }
+                            </td>
+
+                            <td style="padding-left:30px;"><span class="oi oi-people classhover" @onclick="() => RedirectToActors(movie.Id)"></span></td>
+
+                            @if (AppState.LoggedIn)
+                            {
+                                @if (ratings.Exists(r => r.MovieId == movie.Id))
+                                {
+                                    <td>@ratings.Find(r => r.MovieId == movie.Id).Value</td>
+                                }
+                                else
+                                {
+                                    <td><span class="oi oi-plus classhover" @onclick="() => RedirectToAddRating(movie.Id)"></span></td>
+                                }
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <Pagination TotalPages="totalPages" CurrentPage="currentPage" Radius="2" SelectedPage="SelectedPage"></Pagination>
+        }
+    </ContentTemplate>
+</SpinLoader>
+
+
+@code {
+    private List<Movie> movies = new List<Movie>();
+    private List<Rating> ratings = new List<Rating>();
+    private List<MovieGenre> genres = new List<MovieGenre>();
+
+    private int totalPages;
+    private int currentPage = 1;
+    private string searchTerm = "";
+    private bool isLoading = true;
+    private int idGenre = 0;
+    private bool isSorted = false;
+    private string sortDirection = "";
+    private string sortByColumnName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        genres = await Http.Get<List<MovieGenre>>($"{APIConstants.MovieGenresEndpoint}");
+
+        await LoadMovies();
+
+        isLoading = false;
+        StateHasChanged();
+
+        if (AppState.LoggedIn)
+        {
+            ratings = await Http.Get<List<Rating>>($"{APIConstants.RatingsForUserEndpoint}/{AccountService.User.Id}");
+        }
+    }
+
+    private async Task FilterByGenre(int currentIdGenre)
+    {
+        idGenre = currentIdGenre;
+        await SelectedPage(1);
+    }
+
+    private async Task SelectedPage(int page)
+    {
+        currentPage = page;
+        await LoadMovies(page);
+    }
+
+    private async Task ClearGenre()
+    {
+        idGenre = 0;
+        await SelectedPage(1);
+    }
+
+    private async Task ClearFilters()
+    {
+        idGenre = 0;
+        searchTerm = "";
+        isSorted = false;
+        sortDirection = "";
+        await SelectedPage(1);
+    }
+
+    private async Task SortBy(string columnName)
+    {
+        sortByColumnName = columnName;
+
+        if (string.IsNullOrEmpty(sortDirection))
+        {
+            sortDirection = "asc";
+        }
+        else
+        {
+            sortDirection = (sortDirection == "asc" ? "desc" : "asc");
+        }
+        isSorted = true;
+        await LoadMovies(currentPage);
+    }
+
+    private string SetSortIcon(string columnName)
+    {
+        if (isSorted)
+        {
+            if (sortByColumnName != columnName)
+            {
+                return "oi-elevator";
+            }
+            if (sortDirection == "asc")
+            {
+                return "oi-caret-top";
+            }
+            else
+            {
+                return "oi-caret-bottom";
+            }
+        }
+        return "oi-elevator";
+    }
+
+    private async Task LoadMovies(int page = 1, int entitiesPerPage = 10)
+    {
+        string endpoint = $"{APIConstants.MoviesEndpoint}?page={page}&entitiesPerPage={entitiesPerPage}";
+
+        if (searchTerm != "")
+        {
+            endpoint = $"{endpoint}&title={searchTerm}";
+        }
+
+        if (idGenre != 0)
+        {
+            endpoint = $"{endpoint}&idGenre={idGenre}";
+        }
+
+        if (isSorted)
+        {
+            endpoint = $"{endpoint}&sortByColumnName={sortByColumnName}&sortDirection={sortDirection}";
+        }
+
+        var response = await HttpClient.GetAsync(endpoint);
+        if (response.IsSuccessStatusCode)
+        {
+            totalPages = int.Parse(response.Headers.GetValues(APIConstants.NumberOfPagesHeader).FirstOrDefault());
+            var responseString = await response.Content.ReadAsStringAsync();
+            movies = JsonSerializer.Deserialize<List<Movie>>(responseString,
+                new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+        }
+    }
+
+    private void RedirectToActors(int MovieId)
+    {
+        NavigationManager.NavigateTo($"{PagesConstants.ActorsFromMoviePage}/{MovieId}");
+    }
+
+    private void RedirectToAddRating(int MovieId)
+    {
+        NavigationManager.NavigateTo($"{PagesConstants.AddRatingToMoviePage}/{MovieId}");
+    }
+
+    public void ClosePopup()
+    {
+        PopupViewStatus = "hidden";
+    }
+
+    [Parameter] public string MovieDescription { get; set; }
+    [Parameter] public string PictureAddress { get; set; }
+    [Parameter] public string PopupViewStatus { get; set; } = "hidden";
+    [Parameter] public List<Actor> ActorsList { set; get; }
+    [Parameter] public string MovieTitle { set; get; }
+
+    public async void GetMovieData(int movieId)
+    {
+        Movie movie = await Http.Get<Movie>($"{APIConstants.MoviesEndpoint}/{movieId}");
+        ActorsList = await Http.Get<List<Actor>>($"{APIConstants.ActorsFromMovieEndpoint}/{movieId}");
+
+        var client = new HttpClient();
+        var request = new HttpRequestMessage
+        {
+            Method = HttpMethod.Get,
+            RequestUri = new Uri($"{APIConstants.ImdbApiRequestBaseAddress}/{movie.TmdbId}?api_key={APIConstants.ImdbApiRapidKey}")
+        };
+
+        Root details;
+        using (var response = await client.SendAsync(request))
+        {
+            response.EnsureSuccessStatusCode();
+            var body = await response.Content.ReadAsStringAsync();
+            details = JsonSerializer.Deserialize<Root>(body, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
+            MovieDescription = details.Overview;
+            MovieTitle = details.Title;
+            PictureAddress = $"{APIConstants.ImdbApiPictureBaseAddreess}/{details.Poster_Path}";
+        }
+        PopupViewStatus = "visible";
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,134 @@
+﻿@page "/ratings"
+@inject IHttpService Http
+@inject IAccountService AccountService
+@inject AppState AppState
+@inject NavigationManager NavigationManager
+
+
+@if (message != null)
+{
+    @message
+    <br />
+}
+else
+{
+    <link href="_content/BlazorPro.Spinkit/spinkit.min.css" rel="stylesheet" />
+    <SpinLoader IsLoading="isLoading">
+        <LoadingTemplate>
+            <div class="col-12" style="height: 400px; vertical-align:middle">
+                <br /><br />
+                <Circle Center="true" Color="#9400D3" Size="70px"></Circle>
+            </div>
+        </LoadingTemplate>
+        <ContentTemplate>
+            @if (ratings != null)
+            {
+                <button action="action"
+                        onclick="window.history.go(-1); return false;"
+                        type="submit" class="oi oi-arrow-thick-left"
+                        style="background-color:var(--background); color: var(--font-color) ;width:60px; height: 30px; border: none; margin-bottom: 20px">
+                </button>
+
+                @if (ratings.Count == 0)
+                {
+                    <p>You have no ratings yet</p>
+                }
+                else
+                {
+                    <h3>My ratings</h3>
+                    <table class="table">
+                        <thead style="background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%); color:white">
+                            <tr>
+                                <th>Movie</th>
+                                <th>Rating</th>
+                                <th>Update rating</th>
+                                <th>Delete rating</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rating in ratings)
+                            {
+                                <tr>
+                                    <td>@movies.Where(m => m.Id == rating.MovieId).First().Title</td>
+                                    <td style="padding-left:30px;">@rating.Value</td>
+                                    <td class="classhover" style="padding-left:30px;"><span class="oi oi-action-undo" @onclick="() => RedirectToUpdateRating(rating.MovieId)"></span></td>
+                                    <td class="classhover" style="padding-left:30px;"><span class="oi oi-circle-x" @onclick="() => RedirectToDeleteRating(rating.MovieId)"></span></td>
+
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+
+        </ContentTemplate>
+    </SpinLoader>
+}
+
+
+    @code {
+    private List<Rating> ratings;
+    private List<Movie> movies = new List<Movie>();
+    private string message { get; set; }
+    bool isLoading = true;
+
+    private DeleteRatingRequest DeleteRatingRequest = new DeleteRatingRequest();
+    private bool Loading { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!AppState.LoggedIn)
+            {
+                NavigationManager.NavigateTo(PagesConstants.LoginPage);
+            }
+            else
+            {
+                ratings = await Http.Get<List<Rating>>($"{APIConstants.RatingsForUserEndpoint}/{AccountService.User.Id}");
+                foreach (Rating rating in ratings)
+                {
+                    movies.Add(await GetMovieById(rating.MovieId));
+                }
+
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    private Task<Movie> GetMovieById(int id)
+    {
+        return Http.Get<Movie>($"{APIConstants.MoviesEndpoint}/{id}");
+    }
+
+    private void RedirectToUpdateRating(int MovieId)
+    {
+        NavigationManager.NavigateTo($"{PagesConstants.UpdateRatingPage}/{MovieId}");
+    }
+
+    private async void RedirectToDeleteRating(int MovieId)
+    {
+        Loading = true;
+        DeleteRatingRequest.MovieId = MovieId;
+        DeleteRatingRequest.userId = AccountService.User.Id;
+
+        try
+        {
+            await Http.Delete(APIConstants.RatingsEndpoint, DeleteRatingRequest);
+            ratings.RemoveAll(r => r.MovieId == MovieId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            Loading = false;
+            StateHasChanged();
+        }
+    }
+    }

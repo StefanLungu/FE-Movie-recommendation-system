@@ -1,0 +1,105 @@
+﻿@page "/recommendations"
+@inject IAccountService AccountService
+@inject IHttpService Http
+@inject AppState AppState
+@inject NavigationManager NavigationManager
+
+
+@if (message != null)
+{
+    @message
+    <br />
+}
+else
+{
+    <link href="_content/BlazorPro.Spinkit/spinkit.min.css" rel="stylesheet" />
+    <SpinLoader IsLoading="isLoading">
+        <LoadingTemplate>
+            <div class="col-12" style="height: 400px; vertical-align:middle">
+                <br /><br />
+                <Circle Center="true" Color="#9400D3" Size="70px"></Circle>
+            </div>
+        </LoadingTemplate>
+        <ContentTemplate>
+            @if (movies != null)
+            {
+                <button action="action"
+                        onclick="window.history.go(-1); return false;"
+                        type="submit" class="oi oi-arrow-thick-left"
+                        style="background-color:var(--background); color: var(--font-color) ;width:60px; height: 30px; border: none; margin-bottom: 20px">
+                </button>
+
+
+                <h3>Recommendations for @AccountService.User.Username</h3>
+                <table class="table">
+                    <thead style="background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%); color:white">
+                        <tr>
+                            <th>Title</th>
+                            <th>Release Year</th>
+                            <th>Movie Genres</th>
+                            <th>Actors</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var movie in movies)
+                        {
+                            <tr>
+                                <td>@movie.Title</td>
+                                <td style="padding-left:30px;">@movie.ReleaseYear</td>
+
+                                <td>
+                                    @foreach (var genre in movie.Genres)
+                                    {
+                                        <span style="padding:5px">@genre.Name</span>
+                                    }
+                                </td>
+
+                                <td style="padding-left:30px;"><span class="oi oi-people classhover" @onclick="() => RedirectToActors(movie.Id)"></span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </ContentTemplate>
+    </SpinLoader>
+}
+
+
+@code {
+    private List<Movie> movies = new List<Movie>();
+    private string message { get; set; }
+    bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (!AppState.LoggedIn)
+            {
+                NavigationManager.NavigateTo(PagesConstants.LoginPage);
+            }
+            else
+            {
+                movies = await Http.Get<List<Movie>>($"{APIConstants.RecommendationsForUserEndpoint}/{AccountService.User.Id}");
+
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    private void RedirectToActors(int MovieId)
+    {
+        NavigationManager.NavigateTo($"{PagesConstants.ActorsFromMoviePage}/{MovieId}");
+    }
+
+    private void RedirectToAddRating(int MovieId)
+    {
+        NavigationManager.NavigateTo($"{PagesConstants.AddRatingToMoviePage}/{MovieId}");
+    }
+}

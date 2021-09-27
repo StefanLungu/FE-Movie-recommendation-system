@@ -1,0 +1,65 @@
+﻿@page "/movies/{MovieId}"
+@inject IHttpService Http
+
+@if (message != null)
+{
+    @message
+    <br />
+}
+else
+{
+    @if (movie == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <button action="action"
+                onclick="window.history.go(-1); return false;"
+                type="submit" class="oi oi-arrow-thick-left"
+                style="background-color:var(--background); color: var(--font-color) ;width:60px; height: 30px; border: none; margin-bottom: 20px">
+        </button>
+
+        <h3>Actors from @movie.Title</h3>
+        <table class="table">
+            <thead style="background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%); color:white">
+                <tr>
+                    <th>Name</th>
+                    <th>Age</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var actor in actors)
+                {
+                    <tr>
+                        <td>@actor.Name</td>
+                        <td>@actor.Age</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+
+@code {
+    [Parameter] public string MovieId { get; set; }
+
+    private Movie movie { get; set; }
+    private List<Actor> actors = new List<Actor>();
+    private string message { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            movie = await Http.Get<Movie>($"{APIConstants.MoviesEndpoint}/{int.Parse(MovieId)}");
+            actors = await Http.Get<List<Actor>>($"{APIConstants.ActorsFromMovieEndpoint}/{int.Parse(MovieId)}");
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            StateHasChanged();
+        }
+    }
+}
